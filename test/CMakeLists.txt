@@ -82,6 +82,7 @@ add_subdirectory(gif_support)
 
 add_subdirectory(sd_card_font)
 add_subdirectory(reader_font_sizes)
+add_subdirectory(book_font)
 add_subdirectory(clipping_preview)
 add_subdirectory(glyph_bitmap)
 

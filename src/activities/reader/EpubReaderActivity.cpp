@@ -382,6 +382,7 @@ void EpubReaderActivity::openTextSettings(const TextSettingsActivity::Tab tab) {
                              }
                              section.reset();
                            }
+                           saveBookFont();
                            openReaderMenu();
                          });
 }
@@ -1263,6 +1264,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
           if (!saveProgress(backupSpine, backupPage, backupPageCount)) {
             LOG_ERR("ERS", "Failed to save progress before cache clear");
           }
+          resaveBookFont();
         }
       }
       onGoHome();
@@ -3056,6 +3058,7 @@ void EpubReaderActivity::applyReaderTextSettings() {
   // The reader otherwise only loads SD fonts on book open, so without this an
   // in-reader font change wouldn't take effect until re-opening the book.
   sdFontSystem.ensureLoaded(renderer);
+  saveBookFont();
 }
 
 // Font picked in the list menu's Font Family / Font Size popups.
