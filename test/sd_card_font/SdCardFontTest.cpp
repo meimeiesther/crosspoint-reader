@@ -152,6 +152,33 @@ void makeKerningFont(uint16_t extraEntries = 0, uint8_t classCount = 2, uint8_t 
   }
 }
 
+// `intervals` one-glyph intervals from `first`, each a codepoint apart, as a partial CJK font has.
+void makeScatteredFont(uint32_t intervals, uint32_t first) {
+  const size_t glyphOffset = 64 + intervals * sizeof(EpdUnicodeInterval);
+  const size_t bitmapOffset = glyphOffset + intervals * sizeof(EpdGlyph);
+  sdFontTestFile.assign(bitmapOffset + BITMAP_BYTES, 0);
+  std::memcpy(sdFontTestFile.data(), "CPFONT\0\0", 8);
+  put16(8, CPFONT_VERSION);
+  sdFontTestFile[12] = 1;
+  put32(36, intervals);
+  put32(40, intervals);
+  sdFontTestFile[44] = 32;
+  put16(45, 32);
+  put32(56, 64);
+  for (uint32_t i = 0; i < intervals; ++i) {
+    put32(64 + i * 12, first + 2 * i);
+    put32(68 + i * 12, first + 2 * i);
+    put32(72 + i * 12, i);
+    EpdGlyph glyph{};
+    glyph.width = 32;
+    glyph.height = 32;
+    glyph.advanceX = 32 << 4;
+    glyph.top = 32;
+    glyph.dataLength = BITMAP_BYTES;
+    std::memcpy(sdFontTestFile.data() + glyphOffset + i * sizeof(glyph), &glyph, sizeof(glyph));
+  }
+}
+
 std::string latinPage(const char* ascii, uint32_t first, uint32_t count) {
   std::string text = ascii;
   for (uint32_t cp = first; cp < first + count; ++cp) {
@@ -644,4 +671,32 @@ TEST(SdCardFontTest, ACorruptGlyphEntryDrawsAsMissing) {
       EXPECT_EQ(BITMAP_BYTES, found->dataLength);
     }
   }
+}
+
+TEST(SdCardFontTest, ScatteredBmpCoverageLoadsUpToTheCompactCap) {
+  constexpr uint32_t FIRST_HAN = 0x4E00;
+  makeScatteredFont(SdCardFont::MAX_BMP16_INTERVALS, FIRST_HAN);
+  {
+    SdCardFont font;
+    ASSERT_TRUE(font.load("fixture"));
+    EXPECT_TRUE(font.getEpdFont()->hasCodepoint(FIRST_HAN));
+    EXPECT_FALSE(font.getEpdFont()->hasCodepoint(FIRST_HAN + 1));
+    EXPECT_TRUE(font.getEpdFont()->hasCodepoint(FIRST_HAN + 2 * (SdCardFont::MAX_BMP16_INTERVALS - 1)));
+  }
+  makeScatteredFont(SdCardFont::MAX_BMP16_INTERVALS + 1, FIRST_HAN);
+  SdCardFont font;
+  EXPECT_FALSE(font.load("fixture"));
+}
+
+TEST(SdCardFontTest, ScatteredCoverageAboveTheBmpKeepsTheSmallerCap) {
+  constexpr uint32_t FIRST_EXT_B = 0x20000;
+  makeScatteredFont(SdCardFont::MAX_FULL_INTERVALS, FIRST_EXT_B);
+  {
+    SdCardFont font;
+    ASSERT_TRUE(font.load("fixture"));
+    EXPECT_TRUE(font.getEpdFont()->hasCodepoint(FIRST_EXT_B + 2 * (SdCardFont::MAX_FULL_INTERVALS - 1)));
+  }
+  makeScatteredFont(SdCardFont::MAX_FULL_INTERVALS + 1, FIRST_EXT_B);
+  SdCardFont font;
+  EXPECT_FALSE(font.load("fixture"));
 }

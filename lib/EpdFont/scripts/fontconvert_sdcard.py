@@ -34,6 +34,20 @@ from collections import namedtuple
 
 from cpfont_version import CPFONT_VERSION
 
+# Interval caps of the firmware's loader (SdCardFont::MAX_BMP16_INTERVALS and MAX_FULL_INTERVALS
+# in lib/EpdFont/SdCardFont.h). The reader rejects a style above its cap and falls back to the
+# built-in font, so the converter refuses to write one.
+MAX_BMP16_INTERVALS = 8192
+MAX_FULL_INTERVALS = 4096
+
+
+def interval_cap(intervals):
+    """The firmware's interval cap for one style. BMP-only styles with at most 65535 glyphs
+    load into a compact table and may have more intervals."""
+    glyph_count = sum(end - start + 1 for start, end in intervals)
+    bmp16 = glyph_count <= 0xFFFF and all(end <= 0xFFFF for _, end in intervals)
+    return MAX_BMP16_INTERVALS if bmp16 else MAX_FULL_INTERVALS
+
 # --- Unicode interval presets ---
 
 INTERVAL_PRESETS = {
@@ -627,6 +641,13 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
     intervals = validated_intervals
     total_glyphs = sum(end - start + 1 for start, end in intervals)
     print(f"  [{style_label}] Validated: {len(intervals)} intervals, {total_glyphs} glyphs", file=sys.stderr)
+    cap = interval_cap(intervals)
+    if len(intervals) > cap:
+        print(f"Error: [{style_label}] {len(intervals)} intervals exceed the firmware's cap of {cap}. "
+              f"The font leaves many gaps in the requested ranges, and the reader would not load this file. "
+              f"Fill the gaps from a fuller font with --fallback-{style_label}, or narrow --intervals.",
+              file=sys.stderr)
+        sys.exit(1)
 
     # Rasterize all glyphs
     total_bitmap_size = 0

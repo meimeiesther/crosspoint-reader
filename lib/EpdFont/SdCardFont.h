@@ -27,6 +27,12 @@ class SdCardFont {
   // Distinct from a missed-glyph count so the caller can retry smaller.
   static constexpr int PREWARM_ARENA_TOO_LARGE = -2;
   static constexpr uint8_t MAX_STYLES = 4;
+  // A style's interval table stays in RAM while its font is loaded, so load() caps it at 48 KB:
+  // 8192 compact 6-byte records (BMP-only styles with at most 65535 glyphs) or 4096 12-byte ones.
+  // Partial CJK fonts cover their blocks with many gaps and need the larger compact cap.
+  // lib/EpdFont/scripts/fontconvert_sdcard.py mirrors both values.
+  static constexpr uint32_t MAX_BMP16_INTERVALS = 8192;
+  static constexpr uint32_t MAX_FULL_INTERVALS = 4096;
 
   SdCardFont() = default;
   ~SdCardFont();
@@ -189,6 +195,8 @@ class SdCardFont {
     } EPD_PACKED_ATTR;
     EPD_PACKED_END
     static_assert(sizeof(BmpInterval16) == 6, "BmpInterval16 must remain compact");
+    static_assert(MAX_BMP16_INTERVALS * sizeof(BmpInterval16) == MAX_FULL_INTERVALS * sizeof(EpdUnicodeInterval),
+                  "Both interval caps bound a table at the same size");
     BmpInterval16* bmpIntervals = nullptr;
     bool intervalsAreBmp16 = false;
     // The table may be shared with other styles and other loaded fonts; see releaseIntervals().

@@ -225,4 +225,22 @@ To list all presets with codepoint counts:
 
 `--force-autohint` — force FreeType's auto-hinter instead of the font's native hinting (useful when a font's built-in hints produce poor results at small sizes).
 
+`--fallback-regular`, `--fallback-bold`, `--fallback-italic`, `--fallback-bolditalic` — take codepoints the style's font lacks from a second font file.
+
+### Partial fonts and the interval limit
+
+A `.cpfont` stores each run of consecutive codepoints the font covers as one interval, and the reader keeps a style's interval table in RAM while the font is loaded. To bound that memory, the firmware rejects a style with more than **8192** intervals (BMP-only fonts, using a compact 6-byte table) or **4096** intervals (fonts with codepoints above U+FFFF), both about 48 KB. A rejected font still appears in the font list, but the reader uses the built-in font instead.
+
+Fonts that cover a block only in part can reach this limit: a CJK font with about half of the CJK Unified Ideographs, scattered across the block, produces nearly 5,000 intervals with the `cjk` preset. The converter stops with an error when a style exceeds the limit. To convert such a font, fill its gaps from a fuller font of a similar design, which also gives you the missing characters:
+
+```bash
+python3 lib/EpdFont/scripts/fontconvert_sdcard.py \
+  --intervals cjk --sizes 12,14,16,18 \
+  --regular PartialCJK-Regular.ttf \
+  --fallback-regular NotoSerifSC-Regular.otf \
+  --output-dir PartialCJK/
+```
+
+Or narrow `--intervals` to the ranges you need.
+
 Install custom fonts via the web interface or manual SD card copy.

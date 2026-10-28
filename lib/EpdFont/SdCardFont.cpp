@@ -695,11 +695,19 @@ bool SdCardFont::load(const char* path) {
     // Sanity-check counts to reject malformed files before allocating.
     // Kern class counts are uint8 (bounded by type). Entry counts are uint16
     // but in practice a sane font has far fewer than 4096 per-side kern entries.
-    static constexpr uint32_t MAX_INTERVALS = 4096;
+    // Only a compact table may exceed MAX_FULL_INTERVALS; whether the records allow one is
+    // known once they are validated below.
     static constexpr uint32_t MAX_GLYPHS = 65536;
     static constexpr uint32_t MAX_KERN_ENTRIES = 4096;
-    if (s.header.intervalCount > MAX_INTERVALS || s.header.glyphCount > MAX_GLYPHS ||
-        s.header.kernLeftEntryCount > MAX_KERN_ENTRIES || s.header.kernRightEntryCount > MAX_KERN_ENTRIES) {
+    const uint32_t maxIntervals = s.header.glyphCount <= UINT16_MAX ? MAX_BMP16_INTERVALS : MAX_FULL_INTERVALS;
+    if (s.header.intervalCount > maxIntervals) {
+      LOG_ERR("SDCF", "Style %u: %u intervals exceed the cap of %u", styleId, s.header.intervalCount, maxIntervals);
+      file.close();
+      freeAll();
+      return false;
+    }
+    if (s.header.glyphCount > MAX_GLYPHS || s.header.kernLeftEntryCount > MAX_KERN_ENTRIES ||
+        s.header.kernRightEntryCount > MAX_KERN_ENTRIES) {
       LOG_ERR("SDCF", "Style %u: unreasonable counts (iv=%u, gl=%u, kL=%u, kR=%u)", styleId, s.header.intervalCount,
               s.header.glyphCount, s.header.kernLeftEntryCount, s.header.kernRightEntryCount);
       file.close();
@@ -791,6 +799,13 @@ bool SdCardFont::load(const char* path) {
       }
       expectedOffset += span;
       prevLast = iv.last;
+    }
+    if (!canUseBmp16 && s.header.intervalCount > MAX_FULL_INTERVALS) {
+      LOG_ERR("SDCF", "Style %u: %u intervals above the BMP exceed the cap of %u", i, s.header.intervalCount,
+              MAX_FULL_INTERVALS);
+      file.close();
+      freeAll();
+      return false;
     }
 
     // Survived every record: share that table instead of allocating a copy.
