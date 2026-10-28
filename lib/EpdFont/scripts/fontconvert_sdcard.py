@@ -645,7 +645,8 @@ def rasterize_font_style(fontfile, size, intervals, style_id=0, force_autohint=F
     if len(intervals) > cap:
         print(f"Error: [{style_label}] {len(intervals)} intervals exceed the firmware's cap of {cap}. "
               f"The font leaves many gaps in the requested ranges, and the reader would not load this file. "
-              f"Fill the gaps from a fuller font with --fallback-{style_label}, or narrow --intervals.",
+              f"Fill the gaps with --fallback-{style_label} and a font that has the missing characters "
+              f"(for CJK, a full CJK font), or narrow --intervals.",
               file=sys.stderr)
         sys.exit(1)
 
